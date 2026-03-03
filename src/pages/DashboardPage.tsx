@@ -1,0 +1,53 @@
+import { SprintSummaryCard } from '@/components/dashboard/SprintSummaryCard'
+import { StatusChart } from '@/components/dashboard/StatusChart'
+import { RepoCard } from '@/components/dashboard/RepoCard'
+import { useSprintStore } from '@/stores/sprint-store'
+import { Card } from '@/components/ui/Card'
+import { CheckCircle2, XCircle, Clock } from 'lucide-react'
+
+export function DashboardPage() {
+  const sprint = useSprintStore((s) => s.sprint)
+  const testResults = useSprintStore((s) => s.testResults)
+
+  const totalTests = Object.values(testResults).reduce((sum, r) => sum + r.totalCases, 0)
+  const totalPassed = Object.values(testResults).reduce((sum, r) => sum + r.passed, 0)
+  const totalFailed = Object.values(testResults).reduce((sum, r) => sum + r.failed, 0)
+
+  return (
+    <div className="space-y-6">
+      <SprintSummaryCard />
+      <div className="grid grid-cols-2 gap-6">
+        <StatusChart />
+        <RepoCard />
+      </div>
+      {sprint && (
+        <Card>
+          <h2 className="text-lg font-semibold text-text-primary mb-4">Test Overview</h2>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="flex items-center gap-3 rounded-lg border border-border p-4">
+              <Clock className="h-8 w-8 text-primary-500" />
+              <div>
+                <p className="text-2xl font-bold text-text-primary">{totalTests}</p>
+                <p className="text-xs text-text-tertiary">Total Test Cases</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border border-border p-4">
+              <CheckCircle2 className="h-8 w-8 text-success-500" />
+              <div>
+                <p className="text-2xl font-bold text-success-500">{totalPassed}</p>
+                <p className="text-xs text-text-tertiary">Passed</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border border-border p-4">
+              <XCircle className="h-8 w-8 text-danger-500" />
+              <div>
+                <p className="text-2xl font-bold text-danger-500">{totalFailed}</p>
+                <p className="text-xs text-text-tertiary">Failed</p>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
