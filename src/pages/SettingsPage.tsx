@@ -1,13 +1,11 @@
 import { useSettingsStore } from '@/stores/settings-store'
-import { useSprintStore } from '@/stores/sprint-store'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
-import { Trash2, Plus, Upload, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { Trash2, Plus, AlertTriangle, CheckCircle2, Loader2, Link2, Github, Eye, EyeOff, ExternalLink } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
 import type { RepoConfig } from '@/types/settings'
-import type { CsvParseResult } from '@/lib/csv-parser'
+import { getIntegrations, saveIntegrations, testNotionConnection, testGithubConnection } from '@/lib/api'
 
 export function SettingsPage() {
   const {
@@ -21,14 +19,39 @@ export function SettingsPage() {
     updateRepo,
   } = useSettingsStore()
 
-  const loadFromCsv = useSprintStore((s) => s.loadFromCsv)
-  const sprint = useSprintStore((s) => s.sprint)
-
   const [newRepo, setNewRepo] = useState<RepoConfig>({ name: '', url: '', branch: 'main' })
-  const [importResult, setImportResult] = useState<CsvParseResult | null>(null)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [isDragOver, setIsDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [notionExpanded, setNotionExpanded] = useState(false)
+  const [githubExpanded, setGithubExpanded] = useState(false)
+
+  // Integration state
+  const [notionApiKey, setNotionApiKey] = useState('')
+  const [notionStoryDbId, setNotionStoryDbId] = useState('')
+  const [notionSprintDbId, setNotionSprintDbId] = useState('')
+  const [githubToken, setGithubToken] = useState('')
+  const [showNotionKey, setShowNotionKey] = useState(false)
+  const [showGithubToken, setShowGithubToken] = useState(false)
+  const [notionTestResult, setNotionTestResult] = useState<{ connected: boolean; message: string } | null>(null)
+  const [githubTestResult, setGithubTestResult] = useState<{ connected: boolean; message: string } | null>(null)
+  const [savingNotion, setSavingNotion] = useState(false)
+  const [savingGithub, setSavingGithub] = useState(false)
+  const [testingNotion, setTestingNotion] = useState(false)
+  const [testingGithub, setTestingGithub] = useState(false)
+  const [integrationsLoaded, setIntegrationsLoaded] = useState(false)
+
+  const loadIntegrationSettings = useCallback(async () => {
+    try {
+      const data = await getIntegrations()
+      setNotionApiKey(data.notionApiKey)
+      setNotionStoryDbId(data.notionStoryDbId)
+      setNotionSprintDbId(data.notionSprintDbId)
+      setGithubToken(data.githubToken)
+      setIntegrationsLoaded(true)
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    loadIntegrationSettings()
+  }, [loadIntegrationSettings])
 
   const handleAddRepo = () => {
     if (newRepo.name.trim() && newRepo.url.trim()) {
@@ -37,260 +60,384 @@ export function SettingsPage() {
     }
   }
 
-  const handleCsvFile = (file: File) => {
-    setImportError(null)
-    setImportResult(null)
-
-    if (!file.name.endsWith('.csv')) {
-      setImportError('CSV 파일만 지원합니다.')
-      return
+  const handleSaveNotion = async () => {
+    setSavingNotion(true)
+    setNotionTestResult(null)
+    try {
+      await saveIntegrations({ notionApiKey, notionStoryDbId, notionSprintDbId })
+      await loadIntegrationSettings()
+    } catch (err) {
+      setNotionTestResult({ connected: false, message: `저장 실패: ${err instanceof Error ? err.message : String(err)}` })
+    } finally {
+      setSavingNotion(false)
     }
+  }
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const text = e.target?.result as string
-        const result = loadFromCsv(text, sprintName)
-        setImportResult(result)
-      } catch (err) {
-        setImportError(`파싱 실패: ${err instanceof Error ? err.message : String(err)}`)
-      }
+  const handleTestNotion = async () => {
+    setTestingNotion(true)
+    setNotionTestResult(null)
+    try {
+      const result = await testNotionConnection()
+      setNotionTestResult(result)
+    } catch (err) {
+      setNotionTestResult({ connected: false, message: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setTestingNotion(false)
     }
-    reader.onerror = () => setImportError('파일을 읽을 수 없습니다.')
-    reader.readAsText(file)
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleCsvFile(file)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+  const handleSaveGithub = async () => {
+    setSavingGithub(true)
+    setGithubTestResult(null)
+    try {
+      await saveIntegrations({ githubToken })
+      await loadIntegrationSettings()
+    } catch (err) {
+      setGithubTestResult({ connected: false, message: `저장 실패: ${err instanceof Error ? err.message : String(err)}` })
+    } finally {
+      setSavingGithub(false)
+    }
   }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleCsvFile(file)
+  const handleTestGithub = async () => {
+    setTestingGithub(true)
+    setGithubTestResult(null)
+    try {
+      const result = await testGithubConnection()
+      setGithubTestResult(result)
+    } catch (err) {
+      setGithubTestResult({ connected: false, message: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setTestingGithub(false)
+    }
   }
+
+  const notionConnected = integrationsLoaded && !!notionApiKey && !!notionStoryDbId
+  const githubConnected = integrationsLoaded && !!githubToken
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      {/* CSV Import */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notion CSV Import</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-text-secondary">
-            Notion 데이터베이스에서 CSV로 내보낸 파일을 업로드하면 스토리를 자동으로 가져옵니다.
-          </p>
-
-          <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={handleDrop}
-            className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
-              isDragOver
-                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                : 'border-border hover:border-primary-300'
-            }`}
-          >
-            <Upload className="mb-3 h-8 w-8 text-text-tertiary" />
-            <p className="mb-1 text-sm font-medium text-text-primary">
-              CSV 파일을 드래그하거나 클릭하여 선택
-            </p>
-            <p className="mb-3 text-xs text-text-tertiary">
-              Notion → Export → Markdown & CSV
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <FileText className="h-4 w-4" />
-              파일 선택
-            </Button>
-          </div>
-
-          {/* Import Error */}
-          {importError && (
-            <div className="flex items-center gap-2 rounded-lg bg-danger-50 p-3 text-sm text-danger-600 dark:bg-red-900/30 dark:text-red-300">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              {importError}
-            </div>
-          )}
-
-          {/* Import Result */}
-          {importResult && (
-            <div className="space-y-3 rounded-lg border border-border bg-surface-secondary p-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-success-500" />
-                <span className="text-sm font-medium text-text-primary">
-                  {importResult.stories.length}개 스토리 임포트 완료
-                </span>
-                <span className="text-xs text-text-tertiary">
-                  (전체 {importResult.totalRows}행)
-                </span>
+    <div className="mx-auto max-w-3xl space-y-8">
+      {/* Integrations */}
+      <section>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-tertiary">연동</h2>
+        <div className="space-y-3">
+          {/* Notion */}
+          <Card>
+            <div className="flex items-center gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-700 to-gray-900 shadow-md">
+                <Link2 className="h-5 w-5 text-white" />
               </div>
-
-              {importResult.unmappedColumns.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-text-secondary mb-1">매핑되지 않은 컬럼:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {importResult.unmappedColumns.map((col) => (
-                      <Badge key={col} variant="outline" className="text-xs text-warning-600">
-                        {col}
-                      </Badge>
-                    ))}
-                  </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-text-primary">Notion</h3>
+                  {notionConnected && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-medium text-success-600 dark:bg-green-900/30 dark:text-green-300">
+                      <CheckCircle2 className="h-3 w-3" />
+                      연결됨
+                    </span>
+                  )}
                 </div>
-              )}
+                <p className="text-xs text-text-tertiary">스토리와 스프린트를 자동으로 동기화</p>
+              </div>
+              <Button
+                variant={notionExpanded ? 'ghost' : notionConnected ? 'secondary' : 'primary'}
+                size="sm"
+                onClick={() => setNotionExpanded(!notionExpanded)}
+              >
+                {notionExpanded ? '닫기' : notionConnected ? '관리' : '연결'}
+              </Button>
+            </div>
 
-              {importResult.warnings.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-text-secondary mb-1">
-                    경고 ({importResult.warnings.length}):
-                  </p>
-                  <ul className="max-h-32 overflow-y-auto space-y-0.5">
-                    {importResult.warnings.map((w, i) => (
-                      <li key={i} className="text-xs text-warning-600">
-                        {w}
+            {notionExpanded && (
+              <div className="mt-4 space-y-4 border-t border-border pt-4">
+                {!notionConnected && (
+                  <div className="rounded-xl bg-surface-secondary p-4">
+                    <p className="mb-3 text-xs font-semibold text-text-secondary">연결 방법</p>
+                    <ol className="space-y-2.5">
+                      <li className="flex items-start gap-2.5 text-xs">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white text-[10px] font-bold">1</span>
+                        <span className="text-text-secondary pt-0.5">
+                          <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline font-medium">
+                            Notion Integration 생성
+                            <ExternalLink className="ml-1 inline h-3 w-3" />
+                          </a>
+                          {' '}후 API 키를 복사
+                        </span>
                       </li>
-                    ))}
-                  </ul>
+                      <li className="flex items-start gap-2.5 text-xs">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white text-[10px] font-bold">2</span>
+                        <span className="text-text-secondary pt-0.5">Notion에서 스토리/스프린트 DB를 Integration에 공유</span>
+                      </li>
+                      <li className="flex items-start gap-2.5 text-xs">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white text-[10px] font-bold">3</span>
+                        <span className="text-text-secondary pt-0.5">아래에 API 키와 DB ID를 입력하고 저장</span>
+                      </li>
+                    </ol>
+                  </div>
+                )}
+                <div className="relative">
+                  <Input
+                    id="notion-api-key"
+                    label="API Key"
+                    type={showNotionKey ? 'text' : 'password'}
+                    value={notionApiKey}
+                    onChange={(e) => setNotionApiKey(e.target.value)}
+                    placeholder="ntn_..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNotionKey(!showNotionKey)}
+                    className="absolute right-3 top-[34px] text-text-tertiary hover:text-text-primary"
+                  >
+                    {showNotionKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
-              )}
-            </div>
-          )}
+                <Input
+                  id="notion-story-db"
+                  label="스토리 DB ID"
+                  value={notionStoryDbId}
+                  onChange={(e) => setNotionStoryDbId(e.target.value)}
+                  placeholder="b6906a5bcd344a2faff870a31b41b518"
+                  disabled={!integrationsLoaded}
+                />
+                <Input
+                  id="notion-sprint-db"
+                  label="스프린트 DB ID (선택)"
+                  value={notionSprintDbId}
+                  onChange={(e) => setNotionSprintDbId(e.target.value)}
+                  placeholder="1bb0f49c38d6818d890fd8bdee376102"
+                  disabled={!integrationsLoaded}
+                />
+                <div className="flex items-center gap-3">
+                  <Button size="sm" onClick={handleSaveNotion} disabled={savingNotion}>
+                    {savingNotion && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    저장
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={handleTestNotion} disabled={testingNotion}>
+                    {testingNotion && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    연결 테스트
+                  </Button>
+                </div>
+                {notionTestResult && (
+                  <div className={`flex items-center gap-2 rounded-lg p-3 text-sm ${
+                    notionTestResult.connected
+                      ? 'bg-success-50 text-success-600 dark:bg-green-900/20 dark:text-green-300'
+                      : 'bg-danger-50 text-danger-600 dark:bg-red-900/20 dark:text-red-300'
+                  }`}>
+                    {notionTestResult.connected
+                      ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      : <AlertTriangle className="h-4 w-4 shrink-0" />}
+                    {notionTestResult.message}
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
 
-          {/* Current data info */}
-          {sprint && (
-            <div className="flex items-center gap-2 text-xs text-text-tertiary">
-              <span>현재 데이터: {sprint.name} ({sprint.stories.length}개 스토리)</span>
+          {/* GitHub */}
+          <Card>
+            <div className="flex items-center gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-800 to-black shadow-md dark:from-gray-600 dark:to-gray-800">
+                <Github className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-text-primary">GitHub</h3>
+                  {githubConnected && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-medium text-success-600 dark:bg-green-900/30 dark:text-green-300">
+                      <CheckCircle2 className="h-3 w-3" />
+                      연결됨
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-text-tertiary">레포지토리 정보를 연동</p>
+              </div>
+              <Button
+                variant={githubExpanded ? 'ghost' : githubConnected ? 'secondary' : 'primary'}
+                size="sm"
+                onClick={() => setGithubExpanded(!githubExpanded)}
+              >
+                {githubExpanded ? '닫기' : githubConnected ? '관리' : '연결'}
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {githubExpanded && (
+              <div className="mt-4 space-y-4 border-t border-border pt-4">
+                {!githubConnected && (
+                  <div className="rounded-xl bg-surface-secondary p-4">
+                    <p className="mb-3 text-xs font-semibold text-text-secondary">연결 방법</p>
+                    <ol className="space-y-2.5">
+                      <li className="flex items-start gap-2.5 text-xs">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white text-[10px] font-bold">1</span>
+                        <span className="text-text-secondary pt-0.5">
+                          <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline font-medium">
+                            Personal Access Token 생성
+                            <ExternalLink className="ml-1 inline h-3 w-3" />
+                          </a>
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2.5 text-xs">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white text-[10px] font-bold">2</span>
+                        <span className="text-text-secondary pt-0.5">아래에 토큰을 입력하고 저장</span>
+                      </li>
+                    </ol>
+                  </div>
+                )}
+                <div className="relative">
+                  <Input
+                    id="github-token"
+                    label="Personal Access Token"
+                    type={showGithubToken ? 'text' : 'password'}
+                    value={githubToken}
+                    onChange={(e) => setGithubToken(e.target.value)}
+                    placeholder="ghp_... 또는 github_pat_..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowGithubToken(!showGithubToken)}
+                    className="absolute right-3 top-[34px] text-text-tertiary hover:text-text-primary"
+                  >
+                    {showGithubToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button size="sm" onClick={handleSaveGithub} disabled={savingGithub}>
+                    {savingGithub && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    저장
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={handleTestGithub} disabled={testingGithub}>
+                    {testingGithub && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    연결 테스트
+                  </Button>
+                </div>
+                {githubTestResult && (
+                  <div className={`flex items-center gap-2 rounded-lg p-3 text-sm ${
+                    githubTestResult.connected
+                      ? 'bg-success-50 text-success-600 dark:bg-green-900/20 dark:text-green-300'
+                      : 'bg-danger-50 text-danger-600 dark:bg-red-900/20 dark:text-red-300'
+                  }`}>
+                    {githubTestResult.connected
+                      ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      : <AlertTriangle className="h-4 w-4 shrink-0" />}
+                    {githubTestResult.message}
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        </div>
+      </section>
 
       {/* General */}
-      <Card>
-        <CardHeader>
-          <CardTitle>General</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input
-            id="sprint-name"
-            label="Sprint Name"
-            value={sprintName}
-            onChange={(e) => setSprintName(e.target.value)}
-            placeholder="Sprint 2026-W10"
-          />
-          <Input
-            id="notion-url"
-            label="Notion Database URL"
-            value={notionDatabaseUrl}
-            onChange={(e) => setNotionDatabaseUrl(e.target.value)}
-            placeholder="https://www.notion.so/..."
-          />
-        </CardContent>
-      </Card>
+      <section>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-tertiary">일반</h2>
+        <Card>
+          <div className="space-y-4">
+            <Input
+              id="sprint-name"
+              label="스프린트 이름"
+              value={sprintName}
+              onChange={(e) => setSprintName(e.target.value)}
+              placeholder="Sprint 2026-W10"
+            />
+            <Input
+              id="notion-url"
+              label="Notion 데이터베이스 URL"
+              value={notionDatabaseUrl}
+              onChange={(e) => setNotionDatabaseUrl(e.target.value)}
+              placeholder="https://www.notion.so/..."
+            />
+          </div>
+        </Card>
+      </section>
 
       {/* Repositories */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Repositories</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {repos.map((repo, index) => (
-            <div key={index} className="flex items-end gap-3">
-              <div className="flex-1">
-                <Input
-                  label={index === 0 ? 'Name' : undefined}
-                  value={repo.name}
-                  onChange={(e) => updateRepo(index, { ...repo, name: e.target.value })}
-                  placeholder="repo-name"
-                />
+      <section>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-tertiary">레포지토리</h2>
+        <Card>
+          <div className="space-y-4">
+            {repos.map((repo, index) => (
+              <div key={index} className="flex items-end gap-3">
+                <div className="flex-1">
+                  <Input
+                    label={index === 0 ? '이름' : undefined}
+                    value={repo.name}
+                    onChange={(e) => updateRepo(index, { ...repo, name: e.target.value })}
+                    placeholder="repo-name"
+                  />
+                </div>
+                <div className="flex-[2]">
+                  <Input
+                    label={index === 0 ? 'URL 주소' : undefined}
+                    value={repo.url}
+                    onChange={(e) => updateRepo(index, { ...repo, url: e.target.value })}
+                    placeholder="https://github.com/..."
+                  />
+                </div>
+                <div className="w-28">
+                  <Input
+                    label={index === 0 ? '브랜치' : undefined}
+                    value={repo.branch}
+                    onChange={(e) => updateRepo(index, { ...repo, branch: e.target.value })}
+                    placeholder="main"
+                  />
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => removeRepo(repo.name)}>
+                  <Trash2 className="h-4 w-4 text-danger-500" />
+                </Button>
               </div>
-              <div className="flex-[2]">
-                <Input
-                  label={index === 0 ? 'URL' : undefined}
-                  value={repo.url}
-                  onChange={(e) => updateRepo(index, { ...repo, url: e.target.value })}
-                  placeholder="https://github.com/..."
-                />
-              </div>
-              <div className="w-28">
-                <Input
-                  label={index === 0 ? 'Branch' : undefined}
-                  value={repo.branch}
-                  onChange={(e) => updateRepo(index, { ...repo, branch: e.target.value })}
-                  placeholder="main"
-                />
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => removeRepo(repo.name)}>
-                <Trash2 className="h-4 w-4 text-danger-500" />
-              </Button>
-            </div>
-          ))}
+            ))}
 
-          <div className="border-t border-border pt-4">
-            <p className="mb-2 text-sm font-medium text-text-secondary">Add Repository</p>
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <Input
-                  value={newRepo.name}
-                  onChange={(e) => setNewRepo({ ...newRepo, name: e.target.value })}
-                  placeholder="repo-name"
-                />
+            <div className="border-t border-border pt-4">
+              <p className="mb-2 text-sm font-medium text-text-secondary">레포지토리 추가</p>
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <Input
+                    value={newRepo.name}
+                    onChange={(e) => setNewRepo({ ...newRepo, name: e.target.value })}
+                    placeholder="repo-name"
+                  />
+                </div>
+                <div className="flex-[2]">
+                  <Input
+                    value={newRepo.url}
+                    onChange={(e) => setNewRepo({ ...newRepo, url: e.target.value })}
+                    placeholder="https://github.com/..."
+                  />
+                </div>
+                <div className="w-28">
+                  <Input
+                    value={newRepo.branch}
+                    onChange={(e) => setNewRepo({ ...newRepo, branch: e.target.value })}
+                    placeholder="main"
+                  />
+                </div>
+                <Button size="sm" onClick={handleAddRepo}>
+                  <Plus className="h-4 w-4" />
+                  추가
+                </Button>
               </div>
-              <div className="flex-[2]">
-                <Input
-                  value={newRepo.url}
-                  onChange={(e) => setNewRepo({ ...newRepo, url: e.target.value })}
-                  placeholder="https://github.com/..."
-                />
-              </div>
-              <div className="w-28">
-                <Input
-                  value={newRepo.branch}
-                  onChange={(e) => setNewRepo({ ...newRepo, branch: e.target.value })}
-                  placeholder="main"
-                />
-              </div>
-              <Button size="sm" onClick={handleAddRepo}>
-                <Plus className="h-4 w-4" />
-                Add
-              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </Card>
+      </section>
 
       {/* Data */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Data</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-tertiary">데이터</h2>
+        <Card>
           <p className="mb-3 text-sm text-text-secondary">
-            Settings are saved to localStorage and persist across sessions.
+            설정은 localStorage에 저장되며 세션 간 유지됩니다.
           </p>
           <Button variant="danger" size="sm" onClick={() => {
-            if (window.confirm('Reset all settings to defaults?')) {
+            if (window.confirm('모든 설정을 초기화하시겠습니까?')) {
               useSettingsStore.getState().resetSettings()
             }
           }}>
-            Reset All Settings
+            전체 설정 초기화
           </Button>
-        </CardContent>
-      </Card>
+        </Card>
+      </section>
     </div>
   )
 }

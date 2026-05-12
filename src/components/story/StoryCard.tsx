@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronRight, User } from 'lucide-react'
+import { ChevronDown, ChevronRight, User, Sparkles } from 'lucide-react'
 import type { Story } from '@/types/sprint'
 import { STORY_STATUS_LABELS, STORY_STATUS_COLORS, STORY_PRIORITY_COLORS, STORY_TYPE_ICONS } from '@/types/sprint'
 import { Badge } from '@/components/ui/Badge'
 import { cn } from '@/lib/cn'
+import { useChatStore } from '@/stores/chat-store'
 
 interface StoryCardProps {
   story: Story
@@ -12,8 +13,10 @@ interface StoryCardProps {
 }
 
 export function StoryCard({ story, isExpanded, onToggle, children }: StoryCardProps) {
+  const askAboutStory = useChatStore((s) => s.askAboutStory)
+
   return (
-    <div className="rounded-xl border border-border bg-surface overflow-hidden">
+    <div className="rounded-xl border border-border bg-surface backdrop-blur-xl overflow-hidden">
       <button
         onClick={onToggle}
         className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-surface-secondary transition-colors"
@@ -29,6 +32,17 @@ export function StoryCard({ story, isExpanded, onToggle, children }: StoryCardPr
           {story.title}
         </span>
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              askAboutStory(story)
+            }}
+            className="flex items-center gap-1 rounded-md bg-primary-50 px-2 py-0.5 text-xs text-primary-600 hover:bg-primary-100 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:bg-primary-900/50 transition-colors"
+            title="AI에게 이 스토리에 대해 질문"
+          >
+            <Sparkles className="h-3 w-3" />
+            AI
+          </button>
           <Badge className={cn(STORY_PRIORITY_COLORS[story.priority], 'text-[10px]')}>
             {story.priority}
           </Badge>

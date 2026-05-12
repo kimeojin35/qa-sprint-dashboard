@@ -10,7 +10,7 @@ const navItems = [
 
 export function Sidebar() {
   return (
-    <aside className="flex w-60 flex-col bg-sidebar-bg text-sidebar-text">
+    <aside className="flex w-60 flex-col bg-sidebar-bg text-sidebar-text backdrop-blur-2xl border-r border-white/10">
       <div className="flex items-center gap-2 px-5 py-5">
         <Bug className="h-6 w-6 text-sidebar-active" />
         <span className="text-lg font-bold text-white">QA Sprint</span>

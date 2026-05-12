@@ -64,7 +64,7 @@ export function StatusChart() {
             <div key={status} className="flex items-center gap-2">
               <div className={`h-3 w-3 rounded-full ${statusDotColors[status]}`} />
               <span className="text-xs text-text-secondary">
-                {STORY_STATUS_LABELS[status]}: {count}
+                {STORY_STATUS_LABELS[status]}: {count} ({total > 0 ? Math.round((count / total) * 100) : 0}%)
               </span>
             </div>
           )

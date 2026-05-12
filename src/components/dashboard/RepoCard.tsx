@@ -33,13 +33,13 @@ export function RepoCard() {
               <div>
                 <p className="text-sm font-medium text-text-primary">{repo}</p>
                 <p className="text-xs text-text-tertiary">
-                  {stats.total} stories | {stats.done} done
+                  {stats.total} {stats.total === 1 ? 'story' : 'stories'} | {stats.done} done
                 </p>
               </div>
             </div>
             <div className="text-right">
               <p className="text-xs text-text-tertiary">
-                Tests: {stats.tested}/{stats.total} stories
+                Tests: {stats.tested}/{stats.total} {stats.total === 1 ? 'story' : 'stories'}
               </p>
               {stats.tested > 0 && (
                 <p className="text-xs text-text-tertiary">

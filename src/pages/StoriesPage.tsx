@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useSprintStore } from '@/stores/sprint-store'
 import { StoryCard } from '@/components/story/StoryCard'
 import { StoryDetail } from '@/components/story/StoryDetail'
@@ -13,9 +14,25 @@ const allStatuses: StoryStatus[] = ['todo', 'in-progress', 'in-review', 'done', 
 
 export function StoriesPage() {
   const sprint = useSprintStore((s) => s.sprint)
+  const [searchParams] = useSearchParams()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StoryStatus | 'all'>('all')
+
+  useEffect(() => {
+    const statusParam = searchParams.get('status') as StoryStatus | null
+    if (statusParam && allStatuses.includes(statusParam)) {
+      setStatusFilter(statusParam)
+    }
+  }, [searchParams])
+
+  const statusCounts = useMemo(() => {
+    if (!sprint) return {} as Record<StoryStatus, number>
+    const counts = {} as Record<StoryStatus, number>
+    for (const s of allStatuses) counts[s] = 0
+    for (const story of sprint.stories) counts[story.status]++
+    return counts
+  }, [sprint])
 
   const filteredStories = useMemo(() => {
     if (!sprint) return []
@@ -49,7 +66,7 @@ export function StoriesPage() {
               'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
               statusFilter === 'all'
                 ? 'bg-primary-600 text-white'
-                : 'bg-surface-tertiary text-text-secondary hover:bg-surface-tertiary/80',
+                : 'bg-surface-tertiary text-text-secondary hover:bg-surface-secondary backdrop-blur-sm',
             )}
           >
             All
@@ -62,11 +79,11 @@ export function StoriesPage() {
                 'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
                 statusFilter === status
                   ? 'bg-primary-600 text-white'
-                  : 'bg-surface-tertiary text-text-secondary hover:bg-surface-tertiary/80',
+                  : 'bg-surface-tertiary text-text-secondary hover:bg-surface-secondary backdrop-blur-sm',
               )}
             >
               <Badge className={cn(STORY_STATUS_COLORS[status], 'text-[10px]')}>
-                {STORY_STATUS_LABELS[status]}
+                {STORY_STATUS_LABELS[status]}{statusCounts[status] > 0 ? ` (${statusCounts[status]})` : ''}
               </Badge>
             </button>
           ))}

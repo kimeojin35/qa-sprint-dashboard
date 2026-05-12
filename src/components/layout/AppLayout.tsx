@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { AIChatPanel } from '@/components/chat/AIChatPanel'
 import { useSprintStore } from '@/stores/sprint-store'
 
 export function AppLayout() {
@@ -19,10 +20,11 @@ export function AppLayout() {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto bg-surface-secondary p-6">
+        <main className="flex-1 overflow-y-auto bg-transparent p-6">
           <Outlet />
         </main>
       </div>
+      <AIChatPanel />
     </div>
   )
 }

@@ -8,7 +8,7 @@ export function Header() {
   const sprint = useSprintStore((s) => s.sprint)
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-surface px-6">
+    <header className="flex h-14 items-center justify-between border-b border-border bg-surface/80 backdrop-blur-2xl px-6">
       <div>
         <h1 className="text-lg font-semibold text-text-primary">
           {sprint?.name ?? 'QA Sprint Dashboard'}

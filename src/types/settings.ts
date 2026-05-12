@@ -4,6 +4,18 @@ export interface RepoConfig {
   branch: string
 }
 
+export interface IntegrationSettings {
+  notionApiKey: string
+  notionStoryDbId: string
+  notionSprintDbId: string
+  githubToken: string
+}
+
+export interface IntegrationStatus {
+  notion: { connected: boolean; message?: string }
+  github: { connected: boolean; message?: string }
+}
+
 export interface AppSettings {
   notionDatabaseUrl: string
   repos: RepoConfig[]

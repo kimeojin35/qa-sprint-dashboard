@@ -2,9 +2,11 @@ import { Card } from '@/components/ui/Card'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { useSprintStore } from '@/stores/sprint-store'
 import { Target, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 export function SprintSummaryCard() {
   const sprint = useSprintStore((s) => s.sprint)
+  const navigate = useNavigate()
 
   if (!sprint) return null
 
@@ -16,10 +18,10 @@ export function SprintSummaryCard() {
   const donePoints = sprint.stories.filter((s) => s.status === 'done').reduce((sum, s) => sum + s.storyPoints, 0)
 
   const stats = [
-    { label: 'Total Stories', value: total, icon: Target, color: 'text-primary-500' },
-    { label: 'Completed', value: done, icon: CheckCircle2, color: 'text-success-500' },
-    { label: 'In Progress', value: inProgress, icon: Clock, color: 'text-warning-500' },
-    { label: 'Blocked', value: blocked, icon: AlertCircle, color: 'text-danger-500' },
+    { label: 'Total Stories', value: total, icon: Target, color: 'text-primary-500', filter: '' },
+    { label: 'Completed', value: done, icon: CheckCircle2, color: 'text-success-500', filter: '?status=done' },
+    { label: 'In Progress', value: inProgress, icon: Clock, color: 'text-warning-500', filter: '?status=in-progress' },
+    { label: 'Blocked', value: blocked, icon: AlertCircle, color: 'text-danger-500', filter: '?status=blocked' },
   ]
 
   return (
@@ -30,7 +32,11 @@ export function SprintSummaryCard() {
       </div>
       <div className="grid grid-cols-4 gap-4 mb-4">
         {stats.map((stat) => (
-          <div key={stat.label} className="flex items-center gap-3">
+          <div
+            key={stat.label}
+            className="flex items-center gap-3 cursor-pointer rounded-lg p-1 -m-1 transition-colors hover:bg-surface-tertiary/50"
+            onClick={() => navigate(`/stories${stat.filter}`)}
+          >
             <div className="rounded-lg bg-surface-tertiary p-2">
               <stat.icon className={`h-5 w-5 ${stat.color}`} />
             </div>

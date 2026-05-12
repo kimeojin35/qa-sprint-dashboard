@@ -27,6 +27,17 @@ export interface TestCase {
   errorMessage?: string
 }
 
+export interface StoryAnalysis {
+  storyId: string
+  analyzedAt: string
+  riskLevel: 'low' | 'medium' | 'high'
+  changedFiles: string[]
+  changeGuide: string
+  qaChecklist: string
+  coverageAreas: string[]
+  testCaseCount: number
+}
+
 export interface TestResult {
   storyId: string
   runAt: string
